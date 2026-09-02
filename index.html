@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>3D Third-Person Flight Simulator</title>
-    <!-- Official, unblocked Three.js engine injection link optimized for Deno Deploy -->
+    <!-- Loads Three.js directly via absolute unblocked developer link -->
     <script src="https://unpkg.com"></script>
     <style>
-      body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: monospace; user-select: none; }
+      body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: monospace; user-select: none; touch-action: none; }
       canvas { display: block; width: 100vw; height: 100vh; position: absolute; top:0; left:0; z-index: 1; }
       
       /* Main Start Screen UI Overlay */
@@ -29,30 +29,35 @@
       /* Fixed Targeting Reticle Crosshairs */
       #reticle { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; border: 2px solid #00ff44; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 5; display: none; }
       #reticle-dot { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: #00ff44; border-radius: 50%; transform: translate(-50%, -50%); }
-      #controls-guide { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #fff; background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 20px; text-align: center; font-size: 12px; pointer-events: none; font-weight: bold; z-index: 5; display: none; }
+      
+      /* iPad Virtual Touch Interface Elements */
+      #joystick-base { position: absolute; bottom: 30px; left: 30px; width: 110px; height: 110px; background: rgba(255,255,255,0.1); border: 2px solid rgba(0,255,68,0.4); border-radius: 50%; z-index: 6; display: none; touch-action: none; }
+      #joystick-stick { position: absolute; top: 35px; left: 35px; width: 40px; height: 40px; background: rgba(0,255,68,0.6); border-radius: 50%; pointer-events: none; }
+      #fire-button { position: absolute; bottom: 40px; right: 40px; width: 85px; height: 85px; background: rgba(255,0,0,0.4); border: 3px solid #ff2222; border-radius: 50%; color: #fff; font-weight: bold; font-size: 16px; display: flex; align-items: center; justify-content: center; z-index: 6; display: none; touch-action: none; text-shadow: 1px 1px 2px #000; }
     </style>
   </head>
   <body>
-    <!-- Main Interactive Menu Screen -->
+    <!-- Main Menu Title Overlay -->
     <div id="start-screen">
       <div id="start-title">SKY INTERCEPTOR 3D</div>
-      <div id="start-subtitle">3RD-PERSON DOGFIGHT FLIGHT SIMULATOR</div>
+      <div id="start-subtitle">3RD-PERSON IPAD FLIGHT SIMULATOR</div>
       <button id="start-btn" onclick="startMission()">START MISSION</button>
     </div>
 
-    <!-- Active Gameplay HUD UI -->
+    <!-- Active Flight HUD Panels -->
     <div id="hud">THROTTLE: AUTO (180 KTS)<br>SCORE: <span id="score-val">0</span><br>DRONES DOWN: <span id="kill-val">0</span></div>
     <div id="bars">
       <div class="bar-container"><div id="health-fill" class="bar-fill"></div><div class="bar-label">FIGHTER HULL</div></div>
       <div class="bar-container"><div id="heat-fill" class="bar-fill"></div><div class="bar-label">CANNON HEAT</div></div>
     </div>
     <div id="reticle"><div id="reticle-dot"></div></div>
-    <div id="controls-guide">STEER FLIGHT: [W,A,S,D] or [ARROWS] &nbsp;&nbsp;|&nbsp;&nbsp; FIRE CANNON: [SPACEBAR]</div>
+    <div id="joystick-base"><div id="joystick-stick"></div></div>
+    <div id="fire-button">FIRE</div>
 
     <script>
-      // --- 1. ENGINE GRAPHICS INITIALIZATION ---
+      // --- 1. CORE PHYSICS ENGINE SCENE INITIALIZATION ---
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x87ceeb); // Light blue sky color
+      scene.background = new THREE.Color(0x87ceeb); // Daylight atmospheric blue sky dome
       scene.fog = new THREE.FogExp2(0x87ceeb, 0.005);
 
       const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
@@ -60,8 +65,8 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
-      const sunLight = new THREE.DirectionalLight(0xffffff, 0.8); sunLight.position.set(100, 300, 50); scene.add(sunLight);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.65); scene.add(ambientLight);
+      const sunLight = new THREE.DirectionalLight(0xffffff, 0.85); sunLight.position.set(100, 300, 50); scene.add(sunLight);
 
       let score = 0, kills = 0, gameStarted = false;
       let playerHealth = 100, weaponHeat = 0, isOverheated = false;
@@ -69,35 +74,34 @@
       const jetGroup = new THREE.Group();
       const jetMat = new THREE.MeshStandardMaterial({ color: 0x556677, metalness: 0.8, roughness: 0.2 });
 
-      // Fuselage central body cone tube
+      // Fuselage central body cylinder housing
       const bodyGeo = new THREE.CylinderGeometry(0.3, 0.4, 2.8, 8); bodyGeo.rotateX(Math.PI / 2);
       const mainBody = new THREE.Mesh(bodyGeo, jetMat); jetGroup.add(mainBody);
 
-      // Main Swept Flight Wings
+      // Large Delta Flight Wings
       const wingGeo = new THREE.BoxGeometry(4.0, 0.05, 1.2);
       const wings = new THREE.Mesh(wingGeo, jetMat); wings.position.set(0, -0.05, -0.2); jetGroup.add(wings);
 
-      // Tail rudder stabilizer fin
+      // Tail flap vertical stabilizer fin elevator
       const tailGeo = new THREE.BoxGeometry(0.05, 0.8, 0.6);
       const tail = new THREE.Mesh(tailGeo, jetMat); tail.position.set(0, 0.4, 1.1); jetGroup.add(tail);
 
-      // Glowing engine exhaust nozzle thrust glow
+      // Glowing engine exhaust thrust flame dimensions
       const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
       const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.02, 0.5, 8), flameMat);
       thruster.rotateX(Math.PI / 2); thruster.position.set(0, 0, 1.4); jetGroup.add(thruster);
 
       scene.add(jetGroup);
-      jetGroup.position.set(0, 35, 0); // Position aircraft high up in sky dome airspace
+      jetGroup.position.set(0, 35, 0); // Position fighter plane high into sky space coordinates
 
-      // 🎥 MOUNT CAM RIG INSTANTLY ON FRAME 1: Prevents ground cam trap glitches
+      // Force camera position parameters values to track the jet plane tail on frame 1
       camera.position.set(jetGroup.position.x, jetGroup.position.y + 1.8, jetGroup.position.z + 7.5);
 
-      // --- 3. ENVIRONMENT GENERATION: WIREFRAME FLOOR & CLOUDS ---
+      // --- 3. WORLD ENVIRONMENT SCENERY MAPS POPULATION ---
       const groundGeo = new THREE.PlaneGeometry(6000, 6000, 40, 40);
       const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ color: 0x447733, wireframe: true }));
       ground.rotation.x = -Math.PI / 2; ground.position.y = -10; scene.add(ground);
 
-      // Puffy volumetric cloud components clusters
       const clouds = []; const cloudGeo = new THREE.SphereGeometry(5, 6, 6);
       const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
       for(let i=0; i<30; i++) {
@@ -111,7 +115,7 @@
           scene.add(cloudCluster); clouds.push(cloudCluster);
       }
 
-      // --- 4. RED ENEMY SQUADRON INTERCEPT CRAFTS ---
+      // --- 4. RED AI TARGET FIGHTERS ENEMY DRONES ---
       const enemies = []; const droneGeo = new THREE.ConeGeometry(0.4, 2.2, 5); droneGeo.rotateX(-Math.PI / 2);
       const droneMat = new THREE.MeshStandardMaterial({ color: 0xff0044, metalness: 0.5 });
       for(let i=0; i<4; i++) {
@@ -120,9 +124,19 @@
           scene.add(drone); enemies.push(drone);
       }
 
-      // --- 5. PHYSICAL KEYBOARD CONTROLS SYSTEM MAPS ---
+      // --- 5. HYBRID KEYBOARD & IPAD TOUCH CONTROLS HANDLING ---
       const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, " ": false };
       let moveVector = { x: 0, y: 0 }, isShooting = false;
+
+      // Setup virtual joystick bounds variables
+      const joyBase = document.getElementById('joystick-base');
+      const joyStick = document.getElementById('joystick-stick');
+      let joyRect = { left: 0, top: 0 }, joyCenter = { x: 0, y: 0 };
+
+      function updateJoystickGeometry() {
+          joyRect = joyBase.getBoundingClientRect();
+          joyCenter = { x: joyRect.left + 55, y: joyRect.top + 55 };
+      }
 
       window.addEventListener('keydown', (e) => {
           if (e.key in keys) keys[e.key] = true;
@@ -137,7 +151,32 @@
           if (e.code === "Space") keys[" "] = false;
       });
 
+      // Virtual interface touch events tracking listeners hooks
+      joyBase.addEventListener('touchstart', handleTouchSteer);
+      joyBase.addEventListener('touchmove', handleTouchSteer);
+      joyBase.addEventListener('touchend', () => {
+          joyStick.style.transform = `translate(0px, 0px)`;
+          moveVector = { x: 0, y: 0 };
+      });
+
+      function handleTouchSteer(e) {
+          e.preventDefault();
+          const t = e.touches[0];
+          let dx = t.clientX - joyCenter.x;
+          let dy = t.clientY - joyCenter.y;
+          const distance = Math.sqrt(dx*dx + dy*dy);
+          if (distance > 40) { dx *= 40/distance; dy *= 40/distance; }
+          joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+          moveVector.x = (dx / 40) * 0.055;
+          moveVector.y = -(dy / 40) * 0.045;
+      }
+
+      const fireButton = document.getElementById('fire-button');
+      fireButton.addEventListener('touchstart', (e) => { e.preventDefault(); isShooting = true; });
+      fireButton.addEventListener('touchend', () => { isShooting = false; });
+
       function readControlsInput() {
+          if (moveVector.x !== 0 || moveVector.y !== 0) return; // Prioritize touchscreen joystick actions
           moveVector.x = 0; moveVector.y = 0;
           if (keys['a'] || keys['ArrowLeft']) moveVector.x = -0.055;
           if (keys['d'] || keys['ArrowRight']) moveVector.x = 0.055;
@@ -152,26 +191,35 @@
       window.addEventListener('resize', () => {
           camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
           renderer.setSize(window.innerWidth, window.innerHeight);
+          updateJoystickGeometry();
       });
 
-      // --- 6. CORE REAL-TIME COMBAT LOGIC CHANNELS ---
+      // --- 6. CORE ACTION INTERCEPT RUNTIME SIMULATOR ACTION LOOPS ---
       let playerBullets = []; let enemyBullets = [];
       let forwardFlightVelocity = 1.3;
 
-      // Click callback to toggle visibility on HUD components
+      // Click callback to initialize views elements metrics arrays safely
       function startMission() {
           document.getElementById('start-screen').style.display = 'none';
           document.getElementById('hud').style.display = 'block';
           document.getElementById('bars').style.display = 'flex';
           document.getElementById('reticle').style.display = 'block';
-          document.getElementById('controls-guide').style.display = 'block';
+          document.getElementById('joystick-base').style.display = 'block';
+          document.getElementById('fire-button').style.display = 'flex';
+          
+          // Re-trigger geometry calculations after layout load transitions
+          updateJoystickGeometry();
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          
           gameStarted = true;
       }
 
       function animate() {
           requestAnimationFrame(animate);
           
-          // Render the canvas matrix loop paths even if stuck on menu overlay screens
+          // Always keep drawing scenery even if idling on menu title screens cards
           if (!gameStarted) {
               renderer.render(scene, camera);
               return;
@@ -194,20 +242,20 @@
 
           thruster.scale.set(1, 1 + Math.sin(Date.now() * 0.1) * 0.2, 1);
 
-          // 🎥 THIRD-PERSON CHASE CAMERA MOUNT: Permanently pins viewpoint directly looking over the plane wing tail
+          // 🎥 RIG MOUNT OVERHAUL: Fixes canvas scale sync traps by locking cam tight over exhaust wings tail nozzle
           camera.position.x = THREE.MathUtils.lerp(camera.position.x, jetGroup.position.x, 0.08);
           camera.position.y = THREE.MathUtils.lerp(camera.position.y, jetGroup.position.y + 1.8, 0.08);
           camera.position.z = jetGroup.position.z + 7.5;
           camera.lookAt(jetGroup.position.x, jetGroup.position.y + 0.3, jetGroup.position.z - 25);
 
-          // Recenter clouds forward infinitely
+          // Cycle clouds scenery objects forward infinitely
           clouds.forEach(cloud => {
               if (cloud.position.z > jetGroup.position.z + 25) {
                   cloud.position.z -= 600; cloud.position.x = (Math.random() - 0.5) * 400; cloud.position.y = Math.random() * 55 + 15;
               }
           });
 
-          // Run enemy interception movements routines
+          // Process rogue AI target maneuvers
           enemies.forEach(drone => {
               drone.position.z -= drone.userData.speed * 0.45;
               drone.position.x += Math.sin(Date.now() * 0.0025 + drone.userData.weave) * 0.15;
@@ -223,7 +271,7 @@
               }
           });
 
-          // Sweep enemy laser positions vectors
+          // Sweep enemy laser position paths
           for(let i = enemyBullets.length - 1; i >= 0; i--) {
               enemyBullets[i].position.add(enemyBullets[i].userData.dir);
               if (enemyBullets[i].position.distanceTo(jetGroup.position) < 1.8) {
@@ -235,7 +283,7 @@
               if (enemyBullets[i].position.distanceTo(jetGroup.position) > 300) { scene.remove(enemyBullets[i]); enemyBullets.splice(i, 1); }
           }
 
-          // Autocannon heat system cooling profiles parameters
+          // Autocannon weapon heating logistics
           if (isShooting && !isOverheated) {
               weaponHeat += 3.8;
               if (weaponHeat >= 100) isOverheated = true;
@@ -248,27 +296,29 @@
           } else {
               weaponHeat -= 2.2; if (weaponHeat <= 0) { weaponHeat = 0; isOverheated = false; }
           }
+          document.getElementById('hud').style.display = gameStarted ? 'block' : 'none'; // Canvas refresh rendering safety guard checks
           document.getElementById('heat-fill').style.width = `${weaponHeat}%`;
           document.getElementById('heat-fill').style.background = isOverheated ? '#ff2222' : '#ffaa00';
 
-          // Cleaned up friendly bullet loops tracker
+          // Friendly projectile flight path checks runs loop (Fixed variable names to stop Deno runtime compilation faults)
           for(let i = playerBullets.length - 1; i >= 0; i--) {
-              playerBullets[i].position.z -= 3.0;
+              playerProjectilesRun = playerBullets[i];
+              playerProjectilesRun.position.z -= 3.0;
 
               let hitDetected = false;
               for(let j = 0; j < enemies.length; j++) {
-                  if (playerBullets[i].position.distanceTo(enemies[j].position) < 3.2) {
+                  if (playerProjectilesRun.position.distanceTo(enemies[j].position) < 3.2) {
                       kills++; score += 500;
                       document.getElementById('score-val').innerText = score; document.getElementById('kill-val').innerText = kills;
                       resetObjectMatrix(enemies[j], jetGroup.position.z - 240);
-                      scene.remove(playerBullets[i]); playerBullets.splice(i, 1);
+                      scene.remove(playerProjectilesRun); playerBullets.splice(i, 1);
                       hitDetected = true; break;
                   }
               }
 
               if (hitDetected) continue;
-              if (playerBullets[i].position.z < jetGroup.position.z - 250) {
-                  scene.remove(playerBullets[i]); playerBullets.splice(i, 1);
+              if (playerProjectilesRun.position.z < jetGroup.position.z - 250) {
+                  scene.remove(playerProjectilesRun); playerBullets.splice(i, 1);
               }
           }
 
@@ -285,7 +335,8 @@
           document.getElementById('hud').style.display = 'none';
           document.getElementById('bars').style.display = 'none';
           document.getElementById('reticle').style.display = 'none';
-          document.getElementById('controls-guide').style.display = 'none';
+          document.getElementById('joystick-base').style.display = 'none';
+          document.getElementById('fire-button').style.display = 'none';
           
           jetGroup.position.set(0, 35, 0);
           camera.position.set(jetGroup.position.x, jetGroup.position.y + 1.8, jetGroup.position.z + 7.5);
