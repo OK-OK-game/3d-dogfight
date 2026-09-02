@@ -4,36 +4,36 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>3D Third-Person Flight Simulator</title>
-    <!-- Loads the 3D Engine directly via CDN -->
-    <script src="https://cloudflare.com"></script>
+    <!-- Official, unblocked Three.js engine injection link optimized for Deno Deploy -->
+    <script src="https://unpkg.com"></script>
     <style>
       body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: monospace; user-select: none; }
-      canvas { display: block; width: 100vw; height: 100vh; }
+      canvas { display: block; width: 100vw; height: 100vh; position: absolute; top:0; left:0; z-index: 1; }
       
       /* Main Start Screen UI Overlay */
       #start-screen { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #1a2a3a 0%, #050a15 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; color: #00ff44; text-align: center; }
-      #start-title { font-size: 28px; font-weight: bold; letter-spacing: 3px; margin-bottom: 5px; text-shadow: 0 0 10px #00ff44; }
-      #start-subtitle { font-size: 13px; color: #87ceeb; margin-bottom: 40px; letter-spacing: 1px; }
-      #start-btn { padding: 15px 40px; font-size: 18px; font-weight: bold; font-family: monospace; background: transparent; border: 2px solid #00ff44; color: #00ff44; border-radius: 4px; cursor: pointer; box-shadow: 0 0 15px rgba(0,255,68,0.2); transition: all 0.2s; position: relative; }
+      #start-title { font-size: 26px; font-weight: bold; letter-spacing: 3px; margin-bottom: 5px; text-shadow: 0 0 10px #00ff44; }
+      #start-subtitle { font-size: 11px; color: #87ceeb; margin-bottom: 40px; letter-spacing: 1px; }
+      #start-btn { padding: 15px 40px; font-size: 18px; font-weight: bold; font-family: monospace; background: transparent; border: 2px solid #00ff44; color: #00ff44; border-radius: 4px; cursor: pointer; box-shadow: 0 0 15px rgba(0,255,68,0.2); transition: all 0.2s; position: relative; z-index: 11; }
       #start-btn:active { background: #00ff44; color: #000; box-shadow: 0 0 25px #00ff44; transform: scale(0.95); }
       
-      /* Pilot Dashboard HUD */
-      #hud { position: absolute; top: 15px; left: 15px; color: #00ff44; font-size: 16px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; display: none; }
-      #bars { position: absolute; top: 15px; right: 15px; display: flex; flex-direction: column; gap: 8px; width: 180px; pointer-events: none; display: none; }
+      /* Active Gameplay Dashboard HUD Panels */
+      #hud { position: absolute; top: 15px; left: 15px; color: #00ff44; font-size: 16px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 5; display: none; }
+      #bars { position: absolute; top: 15px; right: 15px; display: flex; flex-direction: column; gap: 8px; width: 180px; pointer-events: none; z-index: 5; display: none; }
       .bar-container { background: rgba(0,0,0,0.6); border: 2px solid #00ff44; height: 14px; position: relative; border-radius: 4px; overflow: hidden; }
       .bar-fill { height: 100%; width: 100%; background: #00ff44; }
       #health-fill { background: #ff2222; }
       #heat-fill { background: #ffaa00; width: 0%; }
       .bar-label { position: absolute; font-size: 9px; color: #fff; top: 0px; left: 6px; font-weight: bold; text-shadow: 1px 1px #000; }
       
-      /* Targeting Reticle */
-      #reticle { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; border: 2px solid #00ff44; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; display: none; }
+      /* Fixed Targeting Reticle Crosshairs */
+      #reticle { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; border: 2px solid #00ff44; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 5; display: none; }
       #reticle-dot { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: #00ff44; border-radius: 50%; transform: translate(-50%, -50%); }
-      #controls-guide { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #fff; background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 20px; text-align: center; font-size: 12px; pointer-events: none; font-weight: bold; display: none; }
+      #controls-guide { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #fff; background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 20px; text-align: center; font-size: 12px; pointer-events: none; font-weight: bold; z-index: 5; display: none; }
     </style>
   </head>
   <body>
-    <!-- New Main Screen Overlay -->
+    <!-- Main Interactive Menu Screen -->
     <div id="start-screen">
       <div id="start-title">SKY INTERCEPTOR 3D</div>
       <div id="start-subtitle">3RD-PERSON DOGFIGHT FLIGHT SIMULATOR</div>
@@ -50,9 +50,9 @@
     <div id="controls-guide">STEER FLIGHT: [W,A,S,D] or [ARROWS] &nbsp;&nbsp;|&nbsp;&nbsp; FIRE CANNON: [SPACEBAR]</div>
 
     <script>
-      // --- 1. CORE PHYSICS ENGINE SCENE SETUP ---
+      // --- 1. ENGINE GRAPHICS INITIALIZATION ---
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x87ceeb); // Daylight atmospheric blue sky dome
+      scene.background = new THREE.Color(0x87ceeb); // Light blue sky color
       scene.fog = new THREE.FogExp2(0x87ceeb, 0.005);
 
       const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
@@ -65,39 +65,39 @@
 
       let score = 0, kills = 0, gameStarted = false;
       let playerHealth = 100, weaponHeat = 0, isOverheated = false;
-      // --- 2. CREATE 3RD-PERSON JET ASSETS ---
+      // --- 2. CREATE 3RD-PERSON PLAYER PLANE MODELS ---
       const jetGroup = new THREE.Group();
       const jetMat = new THREE.MeshStandardMaterial({ color: 0x556677, metalness: 0.8, roughness: 0.2 });
 
-      // Fuselage / Central Cockpit body housing
+      // Fuselage central body cone tube
       const bodyGeo = new THREE.CylinderGeometry(0.3, 0.4, 2.8, 8); bodyGeo.rotateX(Math.PI / 2);
       const mainBody = new THREE.Mesh(bodyGeo, jetMat); jetGroup.add(mainBody);
 
-      // Large Delta Flight Wings
+      // Main Swept Flight Wings
       const wingGeo = new THREE.BoxGeometry(4.0, 0.05, 1.2);
       const wings = new THREE.Mesh(wingGeo, jetMat); wings.position.set(0, -0.05, -0.2); jetGroup.add(wings);
 
-      // Vertical Tail Fin Stabilizer fin
+      // Tail rudder stabilizer fin
       const tailGeo = new THREE.BoxGeometry(0.05, 0.8, 0.6);
       const tail = new THREE.Mesh(tailGeo, jetMat); tail.position.set(0, 0.4, 1.1); jetGroup.add(tail);
 
-      // Glowing Exhaust Engine Propulsion Flame
+      // Glowing engine exhaust nozzle thrust glow
       const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
       const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.02, 0.5, 8), flameMat);
       thruster.rotateX(Math.PI / 2); thruster.position.set(0, 0, 1.4); jetGroup.add(thruster);
 
       scene.add(jetGroup);
-      jetGroup.position.set(0, 35, 0); // Position fighter plane high into sky space
+      jetGroup.position.set(0, 35, 0); // Position aircraft high up in sky dome airspace
 
-      // CAMERA MOUNT POSITION FIX: Lock camera directly behind the plane tail right away
+      // 🎥 MOUNT CAM RIG INSTANTLY ON FRAME 1: Prevents ground cam trap glitches
       camera.position.set(jetGroup.position.x, jetGroup.position.y + 1.8, jetGroup.position.z + 7.5);
 
-      // --- 3. ENVIRONMENT GENERATION: GROUND WIREFRAME & CLOUDS ---
+      // --- 3. ENVIRONMENT GENERATION: WIREFRAME FLOOR & CLOUDS ---
       const groundGeo = new THREE.PlaneGeometry(6000, 6000, 40, 40);
       const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ color: 0x447733, wireframe: true }));
       ground.rotation.x = -Math.PI / 2; ground.position.y = -10; scene.add(ground);
 
-      // Volumetric cloud box particles clusters
+      // Puffy volumetric cloud components clusters
       const clouds = []; const cloudGeo = new THREE.SphereGeometry(5, 6, 6);
       const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
       for(let i=0; i<30; i++) {
@@ -111,7 +111,7 @@
           scene.add(cloudCluster); clouds.push(cloudCluster);
       }
 
-      // --- 4. RED HOSTILE ALIEN AI SQUADRONS ---
+      // --- 4. RED ENEMY SQUADRON INTERCEPT CRAFTS ---
       const enemies = []; const droneGeo = new THREE.ConeGeometry(0.4, 2.2, 5); droneGeo.rotateX(-Math.PI / 2);
       const droneMat = new THREE.MeshStandardMaterial({ color: 0xff0044, metalness: 0.5 });
       for(let i=0; i<4; i++) {
@@ -120,7 +120,7 @@
           scene.add(drone); enemies.push(drone);
       }
 
-      // --- 5. KEYBOARD KEYBOARD REGISTER ACTIONS METRICS ---
+      // --- 5. PHYSICAL KEYBOARD CONTROLS SYSTEM MAPS ---
       const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, " ": false };
       let moveVector = { x: 0, y: 0 }, isShooting = false;
 
@@ -154,11 +154,11 @@
           renderer.setSize(window.innerWidth, window.innerHeight);
       });
 
-      // --- 6. CORE ACTION INTERCEPT RUNTIME RUNS ---
+      // --- 6. CORE REAL-TIME COMBAT LOGIC CHANNELS ---
       let playerBullets = []; let enemyBullets = [];
       let forwardFlightVelocity = 1.3;
 
-      // Click event logic wrapper for Menu trigger actions
+      // Click callback to toggle visibility on HUD components
       function startMission() {
           document.getElementById('start-screen').style.display = 'none';
           document.getElementById('hud').style.display = 'block';
@@ -171,7 +171,7 @@
       function animate() {
           requestAnimationFrame(animate);
           
-          // Render backgrounds even if game is waiting on start screen
+          // Render the canvas matrix loop paths even if stuck on menu overlay screens
           if (!gameStarted) {
               renderer.render(scene, camera);
               return;
@@ -194,20 +194,20 @@
 
           thruster.scale.set(1, 1 + Math.sin(Date.now() * 0.1) * 0.2, 1);
 
-          // 🎥 LOCKED CAM ACTION: Locks third-person view field smoothly right on tail exhaust nozzle
+          // 🎥 THIRD-PERSON CHASE CAMERA MOUNT: Permanently pins viewpoint directly looking over the plane wing tail
           camera.position.x = THREE.MathUtils.lerp(camera.position.x, jetGroup.position.x, 0.08);
           camera.position.y = THREE.MathUtils.lerp(camera.position.y, jetGroup.position.y + 1.8, 0.08);
           camera.position.z = jetGroup.position.z + 7.5;
           camera.lookAt(jetGroup.position.x, jetGroup.position.y + 0.3, jetGroup.position.z - 25);
 
-          // Cycle clouds scenery forward endlessly
+          // Recenter clouds forward infinitely
           clouds.forEach(cloud => {
               if (cloud.position.z > jetGroup.position.z + 25) {
                   cloud.position.z -= 600; cloud.position.x = (Math.random() - 0.5) * 400; cloud.position.y = Math.random() * 55 + 15;
               }
           });
 
-          // Run Hostile target calculations logic routes loop passes
+          // Run enemy interception movements routines
           enemies.forEach(drone => {
               drone.position.z -= drone.userData.speed * 0.45;
               drone.position.x += Math.sin(Date.now() * 0.0025 + drone.userData.weave) * 0.15;
@@ -217,12 +217,13 @@
               if (Math.random() < 0.015 && drone.position.z < jetGroup.position.z && drone.position.distanceTo(jetGroup.position) < 220) {
                   const eBolt = new THREE.Mesh(new THREE.SphereGeometry(0.35, 4, 4), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
                   eBolt.position.copy(drone.position);
-                  eBolt.userData = { dir: new THREE.Vector3().subVectors(jetGroup.position, drone.position).normalize().multiplyScalar(1.4) };
+                  const eBlastDir = new THREE.Vector3().subVectors(jetGroup.position, drone.position).normalize().multiplyScalar(1.4);
+                  eBolt.userData = { dir: eBlastDir };
                   scene.add(eBolt); enemyBullets.push(eBolt);
               }
           });
 
-          // Track enemy projectile hits
+          // Sweep enemy laser positions vectors
           for(let i = enemyBullets.length - 1; i >= 0; i--) {
               enemyBullets[i].position.add(enemyBullets[i].userData.dir);
               if (enemyBullets[i].position.distanceTo(jetGroup.position) < 1.8) {
@@ -234,7 +235,7 @@
               if (enemyBullets[i].position.distanceTo(jetGroup.position) > 300) { scene.remove(enemyBullets[i]); enemyBullets.splice(i, 1); }
           }
 
-          // Autocannon heat system cooling operations profiles parameters
+          // Autocannon heat system cooling profiles parameters
           if (isShooting && !isOverheated) {
               weaponHeat += 3.8;
               if (weaponHeat >= 100) isOverheated = true;
@@ -250,7 +251,7 @@
           document.getElementById('heat-fill').style.width = `${weaponHeat}%`;
           document.getElementById('heat-fill').style.background = isOverheated ? '#ff2222' : '#ffaa00';
 
-          // Fixed friendly bullet variable logic loop (Prevents crash errors entirely)
+          // Cleaned up friendly bullet loops tracker
           for(let i = playerBullets.length - 1; i >= 0; i--) {
               playerBullets[i].position.z -= 3.0;
 
@@ -260,7 +261,7 @@
                       kills++; score += 500;
                       document.getElementById('score-val').innerText = score; document.getElementById('kill-val').innerText = kills;
                       resetObjectMatrix(enemies[j], jetGroup.position.z - 240);
-                      scene.remove(playerProjectiles = playerBullets[i]); playerBullets.splice(i, 1);
+                      scene.remove(playerBullets[i]); playerBullets.splice(i, 1);
                       hitDetected = true; break;
                   }
               }
